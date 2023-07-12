@@ -1,6 +1,14 @@
 import pygame
 import random
 import time
+import kivy
+from kivy.app import App
+from kivy.uix.widget import Widget
+from kivy.properties import NumericProperty
+from kivy.core.window import Window
+from kivy.utils import platform
+
+from plyer import accelerometer
 pygame.font.init()
 
 # Fenstergröße
@@ -24,6 +32,9 @@ PLATFORM_SPEED = 3
 # Zeitverzögerung zwischen dem Spawnen von Plattformen (in Millisekunden)
 PLATFORM_SPAWN_DELAY = 2000
 
+# Sprunggeschwindigkeit
+JUMP_SPEED = 2
+
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Doodle Jump")
@@ -32,8 +43,10 @@ FONT = pygame.font.SysFont("comicsans", 30)
 clock = pygame.time.Clock()
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
+    acceleration_x = 0
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
         self.image.fill("red")
         self.rect = self.image.get_rect()
@@ -42,6 +55,13 @@ class Player(pygame.sprite.Sprite):
         self.vel_y = 0
         self.on_platform = False  # Variable zum Überprüfen, ob der Spieler auf einer Plattform steht
 
+        if platform == 'android':
+            accelerometer.enable()
+            accelerometer.bind(on_acceleration=self.on_acceleration)
+
+    def on_acceleration(self, _, acceleration):
+        self.acceleration_x = acceleration[0]  # Nutze die X-Achse für die Steuerung
+    
     def update(self):
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
@@ -63,8 +83,17 @@ class Player(pygame.sprite.Sprite):
             for platform in platform_collision:
                 if self.vel_y > 0 and self.rect.bottom > platform.rect.top:
                     self.rect.bottom = platform.rect.top
-                    self.vel_y = -500  # Nach oben springen
+                    self.vel_y = -JUMP_SPEED  # Nach oben springen
                     platform.kill()  # Entferne die Plattform
+
+        # Sprunggeschwindigkeit anpassen
+        if self.vel_y < 0:
+            self.vel_y += 0.5  # Schrittweise Beschleunigung nach oben
+            if self.vel_y >= 0:  # Maximale Sprunghöhe erreicht
+                self.vel_y = 0  # Sprung abbremsen
+
+        self.rect.x += self.acceleration_x * 10
+        self.rect.y += self.vel_y
 
 class Platform(pygame.sprite.Sprite):
     def __init__(self, x, y):
